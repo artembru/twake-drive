@@ -78,6 +78,12 @@ export function buildSelectQuery<Entity>(
       .join(", ")}`;
   }
 
+  if (findOptions?.sort) {
+    orderByClause = Object.keys(findOptions.sort)
+      .map(key => `${key} ${findOptions.sort[key].toUpperCase()}`)
+      .join(", ");
+  }
+
   const query = `SELECT * FROM ${options.keyspace}.${entityDefinition.name} ${
     whereClause.trim().length ? "WHERE " + whereClause : ""
   } ${orderByClause.trim().length ? "ORDER BY " + orderByClause : ""}`

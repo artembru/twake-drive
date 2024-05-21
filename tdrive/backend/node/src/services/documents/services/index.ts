@@ -227,7 +227,9 @@ export class DocumentsService {
                     is_in_trash: false,
                   }),
             },
-            {},
+            {
+              sort: { added: "desc" },
+            },
             context,
           )
         ).getEntities()

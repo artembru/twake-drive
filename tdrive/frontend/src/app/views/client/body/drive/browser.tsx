@@ -144,7 +144,6 @@ export default memo(
         : children
     )
       .filter(i => !i.is_directory)
-      .sort((a, b) => a.name.localeCompare(b.name));
 
     const onBuildContextMenu = useOnBuildContextMenu(children, initialParentId);
 
