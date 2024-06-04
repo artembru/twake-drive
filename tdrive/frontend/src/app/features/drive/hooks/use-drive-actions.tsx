@@ -3,7 +3,7 @@ import useRouterCompany from '@features/router/hooks/use-router-company';
 import { useCallback } from 'react';
 import { useRecoilValue, useRecoilCallback } from 'recoil';
 import { DriveApiClient } from '../api-client/api-client';
-import { DriveItemAtom, DriveItemChildrenAtom } from '../state/store';
+import { DriveItemAtom, DriveItemChildrenAtom, DriveItemSort } from '../state/store';
 import { BrowseFilter, DriveItem, DriveItemVersion } from '../types';
 import { SharedWithMeFilterState } from '../state/shared-with-me-filter';
 import Languages from 'features/global/services/languages-service';
@@ -17,6 +17,7 @@ export const useDriveActions = () => {
   const companyId = useRouterCompany();
   const sharedFilter = useRecoilValue(SharedWithMeFilterState);
   const { getQuota } = useUserQuota();
+  const sortItem = useRecoilValue(DriveItemSort);
 
   const refresh = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -27,7 +28,7 @@ export const useDriveActions = () => {
             mime_type: sharedFilter.mimeType.value,
           };
           try {
-            const details = await DriveApiClient.browse(companyId, parentId, filter);
+            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem);
             set(DriveItemChildrenAtom(parentId), details.children);
             set(DriveItemAtom(parentId), details);
             for (const child of details.children) {
@@ -43,7 +44,7 @@ export const useDriveActions = () => {
           }
         }
       },
-    [companyId],
+    [companyId, sortItem],
   );
 
   const create = useCallback(

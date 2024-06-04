@@ -7,7 +7,7 @@ import UploadZone from '@components/uploads/upload-zone';
 import { setTdriveTabToken } from '@features/drive/api-client/api-client';
 import { useDriveItem } from '@features/drive/hooks/use-drive-item';
 import { useDriveUpload } from '@features/drive/hooks/use-drive-upload';
-import { DriveItemSelectedList } from '@features/drive/state/store';
+import { DriveItemSelectedList, DriveItemSort } from '@features/drive/state/store';
 import { formatBytes } from '@features/drive/utils';
 import useRouterCompany from '@features/router/hooks/use-router-company';
 import _ from 'lodash';
@@ -19,6 +19,7 @@ import {
   useOnBuildFileTypeContextMenu,
   useOnBuildPeopleContextMenu,
   useOnBuildDateContextMenu,
+  useOnBuildSortContextMenu,
 } from './context-menu';
 import {DocumentRow, DocumentRowOverlay} from './documents/document-row';
 import { FolderRow } from './documents/folder-row';
@@ -46,6 +47,7 @@ import { ConfirmModalAtom } from './modals/confirm-move/index';
 import { useCurrentUser } from 'app/features/users/hooks/use-current-user';
 import { ConfirmModal } from './modals/confirm-move';
 import { useHistory } from 'react-router-dom';
+import { SortIcon } from 'app/atoms/icons-agnostic';
 
 export const DriveCurrentFolderAtom = atomFamily<
     string,
@@ -146,6 +148,7 @@ export default memo(
       .filter(i => !i.is_directory)
 
     const onBuildContextMenu = useOnBuildContextMenu(children, initialParentId);
+    const onBuildSortContextMenu = useOnBuildSortContextMenu();
 
     const handleDragOver = (event: { preventDefault: () => void; }) => {
       event.preventDefault();
@@ -358,6 +361,17 @@ export default memo(
                     {formatBytes(item?.size || 0)} {Languages.t('scenes.app.drive.used')}
                   </BaseSmall>
                 )}
+                <Menu menu={() => onBuildSortContextMenu()}>
+                    {' '}
+                    <Button theme="outline" className="ml-4 flex flex-row items-center">
+                      <SortIcon className="h-4 w-4 mr-2 -ml-1" />
+                      <span>
+                        By date
+                      </span>
+
+                      <ChevronDownIcon className="h-4 w-4 ml-2 -mr-1" />
+                    </Button>
+                  </Menu>
                 {viewId !== 'shared_with_me' && (
                   <Menu menu={() => onBuildContextMenu(details)}>
                     {' '}

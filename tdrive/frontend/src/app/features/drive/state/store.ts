@@ -1,5 +1,5 @@
 import { atomFamily, atom } from 'recoil';
-import { DriveItem, DriveItemDetails } from '../types';
+import { BrowseSort, DriveItem, DriveItemDetails } from '../types';
 
 export const DriveItemChildrenAtom = atomFamily<DriveItem[], string>({
   key: 'DriveItemChildrenAtom',
@@ -14,4 +14,12 @@ export const DriveItemAtom = atomFamily<Partial<DriveItemDetails> | null, string
 export const DriveItemSelectedList = atom<{[key: string]: boolean }>({
   key: 'DriveItemSelectedList',
   default: {}
+});
+
+export const DriveItemSort = atom<BrowseSort>({
+  key: 'DriveItemSort',
+  default: {
+    by: 'name',
+    order: 'asc',
+  },
 });
