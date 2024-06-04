@@ -29,6 +29,7 @@ import {
   DriveTdriveTab,
   RootType,
   SearchDocumentsOptions,
+  SortDocumentsBody,
   TrashType,
 } from "../types";
 import {
@@ -103,6 +104,7 @@ export class DocumentsService {
   browse = async (
     id: string,
     options: SearchDocumentsOptions,
+    sort: SortDocumentsBody,
     context: DriveExecutionContext & { public_token?: string },
   ): Promise<BrowseDetails> => {
     if (isSharedWithMeFolder(id)) {
@@ -110,7 +112,7 @@ export class DocumentsService {
     } else {
       return {
         nextPage: null,
-        ...(await this.get(id, context)),
+        ...(await this.get(id, context, sort)),
       };
     }
   };
@@ -152,6 +154,7 @@ export class DocumentsService {
   get = async (
     id: string,
     context: DriveExecutionContext & { public_token?: string },
+    sort?: SortDocumentsBody,
   ): Promise<DriveItemDetails> => {
     if (!context) {
       this.logger.error("invalid context");
@@ -204,6 +207,15 @@ export class DocumentsService {
           )
         ).getEntities();
 
+    const sortFieldMapping = {
+      name: "name",
+      date: "added",
+      shared: "scope",
+      sized: "size",
+    };
+    const sortField = {};
+    sortField[sortFieldMapping[sort?.by] || "name"] = sort?.order || "asc";
+
     //Get children if it is a directory
     let children = isDirectory
       ? (
@@ -227,9 +239,7 @@ export class DocumentsService {
                     is_in_trash: false,
                   }),
             },
-            {
-              sort: { added: "desc" },
-            },
+            sortField,
             context,
           )
         ).getEntities()

@@ -55,6 +55,11 @@ export type SearchDocumentsOptions = {
   pagination?: Paginable;
 };
 
+export type BrowseDocumentsOptions = {
+  filter: SearchDocumentsBody;
+  sort: SortDocumentsBody;
+};
+
 export type SearchDocumentsBody = {
   search?: string;
   company_id?: string;
@@ -67,6 +72,11 @@ export type SearchDocumentsBody = {
   sort?: SortType;
   view?: string;
   fields?: string[];
+};
+
+export type SortDocumentsBody = {
+  by: string;
+  order: string;
 };
 
 export type DocumentsMessageQueueRequest = {

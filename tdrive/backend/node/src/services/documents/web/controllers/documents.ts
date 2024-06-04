@@ -13,6 +13,7 @@ import {
 import { DriveFile } from "../../entities/drive-file";
 import { FileVersion } from "../../entities/file-version";
 import {
+  BrowseDocumentsOptions,
   CompanyExecutionContext,
   DriveExecutionContext,
   DriveFileAccessLevel,
@@ -22,6 +23,7 @@ import {
   RequestParams,
   SearchDocumentsBody,
   SearchDocumentsOptions,
+  SortDocumentsBody,
 } from "../../types";
 import { DriveFileDTO } from "../dto/drive-file-dto";
 import { DriveFileDTOBuilder } from "../../services/drive-file-dto-builder";
@@ -185,7 +187,7 @@ export class DocumentsController {
   browse = async (
     request: FastifyRequest<{
       Params: ItemRequestParams;
-      Body: SearchDocumentsBody;
+      Body: BrowseDocumentsOptions;
       Querystring: PaginationQueryParameters & { public_token?: string };
     }>,
   ): Promise<DriveItemDetails & { websockets: ResourceWebsocket[] }> => {
@@ -193,15 +195,22 @@ export class DocumentsController {
     const { id } = request.params;
 
     const options: SearchDocumentsOptions = {
-      ...request.body,
-      company_id: request.body.company_id || context.company.id,
+      ...request.body.filter,
+      company_id: request.body.filter.company_id || context.company.id,
       view: DriveFileDTOBuilder.VIEW_SHARED_WITH_ME,
       onlyDirectlyShared: true,
       onlyUploadedNotByMe: true,
     };
 
+    const sortOptions: SortDocumentsBody = request.body.sort;
+
     return {
-      ...(await globalResolver.services.documents.documents.browse(id, options, context)),
+      ...(await globalResolver.services.documents.documents.browse(
+        id,
+        options,
+        sortOptions,
+        context,
+      )),
       websockets: [],
     };
   };
