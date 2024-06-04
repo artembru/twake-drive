@@ -1,12 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import _ from "lodash";
-import { v4 } from "uuid";
 import { CrudException } from "../../../../core/platform/framework/api/crud-service";
-import { localEventBus } from "../../../../core/platform/framework/event-bus";
-import {
-  RealtimeApplicationEvent,
-  RealtimeBaseBusEvent,
-} from "../../../../core/platform/services/realtime/types";
 import { ResourceGetResponse } from "../../../../utils/types";
 import {
   ApplicationObject,
@@ -45,7 +39,7 @@ export class ApplicationsApiController {
 
     return {
       resource: {
-        access_token: gr.platformServices.auth.generateJWT(request.body.id, null, {
+        access_token: gr.platformServices.auth.generateJWT(request.body.id, null, "", {
           track: false,
           provider_id: "",
           application_id: request.body.id,
@@ -83,26 +77,6 @@ export class ApplicationsApiController {
     if (!application) {
       throw CrudException.forbidden("Application not found");
     }
-
-    const body = request.body;
-
-    const data = {
-      action: "configure",
-      application: {
-        id: app_id,
-        identity: application.identity,
-      },
-      form: body.form,
-      connection_id: body.connection_id,
-      hidden_data: {},
-      configurator_id: v4(),
-    };
-
-    localEventBus.publish("realtime:event", {
-      room: "/me/" + body.user_id,
-      type: "application",
-      data,
-    } as RealtimeBaseBusEvent<RealtimeApplicationEvent>);
 
     return { status: "ok" };
   }
@@ -194,7 +168,7 @@ function getExecutionContext(request: FastifyRequest): ApplicationApiExecutionCo
     application_id: request.currentUser?.application_id,
     user: request.currentUser,
     url: request.url,
-    method: request.routerMethod,
+    method: request.routeOptions.method,
     transport: "http",
   };
 }

@@ -1,17 +1,13 @@
 {
+  "general": {
+    "accounts": {
+      "type": "remote"
+    }
+  },
   "database": {
     "secret": "",
     "mongodb": {
       "uri": "mongodb://mongo:27017"
-    },
-    "cassandra": {
-      "contactPoints": ["scylladb:9042"],
-      "wait": true,
-      "retries": 50,
-      "delay": 500,
-      "queryOptions": {
-        "consistency": 1
-      }
     }
   },
   "message-queue": {

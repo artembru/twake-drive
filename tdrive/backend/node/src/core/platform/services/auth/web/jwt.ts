@@ -5,8 +5,10 @@ import fp from "fastify-plugin";
 import config from "../../../../config";
 import { JwtType } from "../../types";
 import { executionStorage } from "../../../framework/execution-storage";
+import gr from "../../../../../services/global-resolver";
+import { CrudException } from "../../../framework/api/crud-service";
 
-const jwtPlugin: FastifyPluginCallback = (fastify, _opts, next) => {
+const jwtPlugin: FastifyPluginCallback = async (fastify, _opts, next) => {
   fastify.register(cookie);
   fastify.register(fastifyJwt, {
     secret: config.get("auth.jwt.secret"),
@@ -18,6 +20,12 @@ const jwtPlugin: FastifyPluginCallback = (fastify, _opts, next) => {
 
   const authenticate = async (request: FastifyRequest) => {
     const jwt: JwtType = await request.jwtVerify();
+
+    // Verify the SID exists and is valid except tokens for the public link
+    if (!jwt.public_token_document_id) {
+      await gr.services.console.getClient().verifyJwtSid(jwt.sid);
+    }
+
     if (jwt.type === "refresh") {
       // TODO  in the future we must invalidate the refresh token (because it should be single use)
     }
@@ -25,6 +33,7 @@ const jwtPlugin: FastifyPluginCallback = (fastify, _opts, next) => {
     request.currentUser = {
       ...{ email: jwt.email },
       ...{ id: jwt.sub },
+      ...{ sid: jwt.sid },
       ...{ identity_provider_id: jwt.provider_id },
       ...{ application_id: jwt.application_id || null },
       ...{ server_request: jwt.server_request || false },
@@ -42,7 +51,7 @@ const jwtPlugin: FastifyPluginCallback = (fastify, _opts, next) => {
     try {
       await authenticate(request);
     } catch (err) {
-      throw fastify.httpErrors.unauthorized(`Bad credentials ${JSON.stringify(err)}`);
+      throw CrudException.unauthorized(`Bad credentials: ${err.message}`);
     }
   });
 

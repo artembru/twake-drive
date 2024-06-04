@@ -1,6 +1,6 @@
 // @ts-ignore
 import fs from "fs";
-import { Readable } from 'stream';
+import { Readable } from "stream";
 import { ResourceUpdateResponse, Workspace } from "../../../src/utils/types";
 import { File } from "../../../src/services/files/entities/file";
 import { deserialize } from "class-transformer";
@@ -11,17 +11,22 @@ import { TestDbService } from "../utils.prepare.db";
 import { DriveFile } from "../../../src/services/documents/entities/drive-file";
 import { FileVersion } from "../../../src/services/documents/entities/file-version";
 import {
-  AccessTokenMockClass, DriveFileMockClass,
+  AccessTokenMockClass,
   DriveItemDetailsMockClass,
   SearchResultMockClass,
   UserQuotaMockClass
 } from "./entities/mock_entities";
 import { logger } from "../../../src/core/platform/framework";
 import { expect } from "@jest/globals";
-import { publicAccessLevel } from "../../../src/services/documents/types";
+import { DriveFileAccessLevel, publicAccessLevel } from "../../../src/services/documents/types";
 import { UserQuota } from "../../../src/services/user/web/types";
 import { Api } from "../utils.api";
+import { OidcJwtVerifier } from "../../../src/services/console/clients/remote-jwks-verifier";
 
+/** The UserApi is an abstraction for E2E tests that
+ * represents the high level actions a user can take
+ * in the application.
+ */
 export default class UserApi {
 
   private static readonly DOC_URL = "/internal/services/documents/v1";
@@ -43,6 +48,7 @@ export default class UserApi {
   workspace: Workspace;
   jwt: string;
   api: Api;
+  session: string;
 
   private constructor(
     platform: TestPlatform
@@ -52,23 +58,87 @@ export default class UserApi {
 
   private async init(newUser: boolean, options?: {}) {
     this.dbService = await TestDbService.getInstance(this.platform, true);
+    this.workspace = this.platform.workspace;
     if (newUser) {
-      this.workspace = this.platform.workspace;
-      const workspacePK = { id: this.workspace.workspace_id, company_id: this.workspace.company_id };
+      const workspacePK = {
+        id: this.workspace.workspace_id,
+        company_id: this.workspace.company_id,
+      };
       this.user = await this.dbService.createUser([workspacePK], options, uuidv1());
       this.anonymous = await this.dbService.createUser([workspacePK],
         {
           ...options,
-          identity_provider: "anonymous"
+          identity_provider: "anonymous",
         },
         uuidv1());
     } else {
       this.user = this.platform.currentUser;
-      this.workspace = this.platform.workspace;
     }
     this.api = new Api(this.platform, this.user);
-    this.jwt = this.getJWTTokenForUser(this.user.id);
+    this.jwt = await this.doLogin();
   }
+
+  public async doLogin() {
+    const loginResponse = await this.login();
+
+    expect(loginResponse).toBeDefined();
+    expect(loginResponse.statusCode).toEqual(200);
+
+    const accessToken = deserialize<AccessTokenMockClass>(AccessTokenMockClass, loginResponse.body);
+    if (!accessToken.access_token?.value)
+      throw Error("Auth error: authentication token doesn't exists in response");
+    return accessToken.access_token.value;
+  }
+
+  /**
+   * Just send the login requests without any validation and login response assertion
+   */
+  public async login(session?: string) {
+    if (session !== undefined) {
+      this.session = session;
+    } else {
+      this.session = uuidv1();
+    }
+    const payload = {
+      claims: {
+        sub: this.user.id,
+        first_name: this.user.first_name,
+        sid: this.session,
+      },
+    };
+    const verifierMock = jest.spyOn(OidcJwtVerifier.prototype, "verifyIdToken");
+    verifierMock.mockImplementation(() => {
+      return Promise.resolve(payload); // Return the predefined payload
+    });
+    return await this.api.post("/internal/services/console/v1/login", {
+      oidc_id_token: "sample_oidc_token",
+    });
+  }
+
+  public async logout() {
+    const payload = {
+      claims: {
+        iss: "tdrive_lemonldap",
+        sub: this.user.id,
+        sid: this.session,
+        aud: "your-audience",
+        iat: Math.floor(Date.now() / 1000),
+        jti: "jwt-id",
+        events: {
+          "http://schemas.openid.net/event/backchannel-logout": {},
+        },
+      }
+    };
+    const verifierMock = jest.spyOn(OidcJwtVerifier.prototype, "verifyLogoutToken");
+    verifierMock.mockImplementation(() => {
+      return Promise.resolve(payload); // Return the predefined payload
+    });
+
+    return await this.api.post("/internal/services/console/v1/backchannel_logout", {
+      logout_token: "logout_token_rsa256",
+    });
+  }
+
 
   public static async getInstance(platform: TestPlatform, newUser = false, options?: {}): Promise<UserApi> {
     const helpers = new UserApi(platform);
@@ -145,18 +215,39 @@ export default class UserApi {
     return files;
   };
 
-  async createDirectory(parent = "root") {
+  async createDirectory(parent = "root", overrides?: Partial<DriveFile>) {
     const directory = await this.createDocument({
       company_id: this.platform.workspace.company_id,
       name: "Test Folder Name",
       parent_id: parent,
-      is_directory: true
+      is_directory: true,
+      ...overrides
     }, {});
     expect(directory).toBeDefined();
     expect(directory).not.toBeNull();
     expect(directory.id).toBeDefined();
     expect(directory.id).not.toBeNull();
     return directory;
+  }
+
+  /** Run the provided callback using the specified bearer JWT token */
+  async impersonateWithJWT<T>(jwt: string, cb: () => Promise<T>): Promise<T> {
+    const previous = this.jwt;
+    this.jwt = jwt;
+    let result: T | undefined = undefined;
+    try {
+      result = await cb();
+    } finally {
+      this.jwt = previous;
+    }
+    return result;
+  }
+
+  /** Gets the public link access token then `impersonateWithJWT` as an anonymous user with that link */
+  async impersonatePublicLinkAccessOf<T>(item: Partial<DriveFile> & { id: string }, cb: () => Promise<T>): Promise<T> {
+    const publicToken = await this.getPublicLinkAccessToken(item);
+    expect(publicToken?.value?.length ?? "").toBeGreaterThan(0);
+    return this.impersonateWithJWT(publicToken?.value, cb);
   }
 
   async createDocument(
@@ -173,29 +264,47 @@ export default class UserApi {
     return deserialize<DriveFile>(DriveFile, response.body);
   };
 
-  async createDefaultDocument(): Promise<DriveFile> {
+  async createDefaultDocument(overrides?: Partial<DriveFile>): Promise<DriveFile> {
     const scope: "personal" | "shared" = "shared";
     const item = {
       name: "new test file",
       parent_id: "root",
       company_id: this.platform.workspace.company_id,
       scope,
+      ...overrides,
     };
 
     return await this.createDocument(item, {});
   };
 
-  async shareWithPublicLink(doc: Partial<DriveFile>, accessLevel: publicAccessLevel) {
+  async shareWithPublicLink(doc: Partial<DriveFile> & { id: string }, accessLevel: publicAccessLevel) {
     return await this.updateDocument(doc.id, {
       ...doc,
       access_info: {
-        ...doc.access_info,
+        ...doc.access_info!,
         public: {
-          ...doc.access_info.public!,
+          ...doc.access_info?.public!,
           level: accessLevel
         }
       }
     });
+  }
+
+  async shareWithPublicLinkWithOkCheck(doc: Partial<DriveFile> & { id: string }, accessLevel: publicAccessLevel) {
+    const shareResponse =  await this.shareWithPublicLink(doc, accessLevel);
+    expect(shareResponse.statusCode).toBe(200);
+    return deserialize<DriveFile>(DriveFile, shareResponse.body);
+  }
+
+  async shareWithPermissions(doc: Partial<DriveFile> & { id: string }, toUserId: string, permissions: DriveFileAccessLevel) {
+    doc.access_info.entities.push({
+      type: "user",
+      id: toUserId,
+      level: permissions,
+      grantor: null,
+    });
+    console.log(`INFO:: ${doc.access_info}`);
+    return await this.updateDocument(doc.id, doc);
   }
 
   async getPublicLinkAccessToken(doc: Partial<DriveFile>) {
@@ -332,7 +441,7 @@ export default class UserApi {
     });
   };
 
-  async getFolder(id: string | "root" | "trash" | "shared_with_me") {
+  async zipDocument(id: string | "root" | "trash" | "shared_with_me") {
     return await this.platform.app.inject({
       method: "GET",
       url: `${UserApi.DOC_URL}/companies/${this.platform.workspace.company_id}/item/download/zip?items=${id}`,
@@ -342,19 +451,12 @@ export default class UserApi {
     });
   };
 
-
   async getDocumentOKCheck(id: string | "root" | "trash" | "shared_with_me") {
     const response = await this.getDocument(id);
     expect(response.statusCode).toBe(200);
     const doc = deserialize<DriveItemDetailsMockClass>(DriveItemDetailsMockClass, response.body);
     expect(doc.item?.id).toBe(id);
-  };
-
-  async getFolderOKCheck(id: string | "root" | "trash" | "shared_with_me") {
-    const response = await this.getFolder(id);
-    expect(response.statusCode).toBe(200);
-    const doc = deserialize<DriveItemDetailsMockClass>(DriveItemDetailsMockClass, response.body);
-    expect(doc.item?.id).toBe(id);
+    return doc;
   };
 
   async sharedWithMeDocuments(

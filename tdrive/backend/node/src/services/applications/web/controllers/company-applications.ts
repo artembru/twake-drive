@@ -10,7 +10,6 @@ import {
 import { PublicApplicationObject } from "../../entities/application";
 import { CompanyExecutionContext } from "../types";
 import { CrudController } from "../../../../core/platform/services/webserver/types";
-import { getCompanyApplicationRooms } from "../../realtime";
 import gr from "../../../global-resolver";
 
 export class CompanyApplicationController
@@ -55,11 +54,6 @@ export class CompanyApplicationController
     return {
       resources: resources.getEntities().map(ca => ca.application),
       next_page_token: resources.nextPage?.page_token,
-      websockets:
-        gr.platformServices.realtime.sign(
-          getCompanyApplicationRooms(request.params.company_id),
-          context.user.id,
-        ) || [],
     };
   }
 }
@@ -73,7 +67,7 @@ function getCompanyExecutionContext(
     user: request.currentUser,
     company: { id: request.params.company_id },
     url: request.url,
-    method: request.routerMethod,
+    method: request.routeOptions.method,
     reqId: request.id,
     transport: "http",
   };

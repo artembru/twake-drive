@@ -5,11 +5,7 @@ import { CrudException, ListResult } from "../../../../core/platform/framework/a
 import { File } from "../../../../services/files/entities/file";
 import { UploadOptions } from "../../../../services/files/types";
 import globalResolver from "../../../../services/global-resolver";
-import {
-  CompanyUserRole,
-  PaginationQueryParameters,
-  ResourceWebsocket,
-} from "../../../../utils/types";
+import { CompanyUserRole, PaginationQueryParameters } from "../../../../utils/types";
 import { DriveFile } from "../../entities/drive-file";
 import { FileVersion } from "../../entities/file-version";
 import {
@@ -162,18 +158,12 @@ export class DocumentsController {
       Params: ItemRequestParams;
       Querystring: PaginationQueryParameters & { public_token?: string };
     }>,
-  ): Promise<DriveItemDetails & { websockets: ResourceWebsocket[] }> => {
+  ): Promise<DriveItemDetails> => {
     const context = getDriveExecutionContext(request);
     const { id } = request.params;
 
     return {
       ...(await globalResolver.services.documents.documents.get(id, context)),
-      websockets: request.currentUser?.id
-        ? globalResolver.platformServices.realtime.sign(
-            [{ room: `/companies/${context.company.id}/documents/item/${id}` }],
-            request.currentUser?.id,
-          )
-        : [],
     };
   };
 
@@ -190,7 +180,7 @@ export class DocumentsController {
       Body: BrowseDocumentsOptions;
       Querystring: PaginationQueryParameters & { public_token?: string };
     }>,
-  ): Promise<DriveItemDetails & { websockets: ResourceWebsocket[] }> => {
+  ): Promise<DriveItemDetails> => {
     const context = getDriveExecutionContext(request);
     const { id } = request.params;
 
@@ -211,7 +201,6 @@ export class DocumentsController {
         sortOptions,
         context,
       )),
-      websockets: [],
     };
   };
 
@@ -391,6 +380,7 @@ export class DocumentsController {
         });
 
         archive.pipe(response.raw);
+        return response;
       } else if (archiveOrFile.file) {
         const data = archiveOrFile.file;
         const filename = encodeURIComponent(data.name.replace(/[^\p{L}0-9 _.-]/gu, ""));
@@ -398,7 +388,7 @@ export class DocumentsController {
         response.header("Content-disposition", `attachment; filename="${filename}"`);
         if (data.size) response.header("Content-Length", data.size);
         response.type(data.mime);
-        response.send(data.file);
+        return response.send(data.file);
       }
     } catch (error) {
       logger.error({ error: `${error}` }, "failed to download file");
@@ -447,6 +437,8 @@ export class DocumentsController {
       });
 
       archive.pipe(reply.raw);
+
+      return reply;
     } catch (error) {
       logger.error({ error: `${error}` }, "failed to send zip file");
       throw new CrudException("Failed to create zip file", 500);
@@ -574,11 +566,16 @@ export class DocumentsController {
     }
     await globalResolver.services.companies.setUserRole(document.item.company_id, user.id, "guest");
 
-    const token = globalResolver.platformServices.auth.generateJWT(user.id, user.email_canonical, {
-      track: false,
-      provider_id: "tdrive",
-      public_token_document_id: req.body.document_id,
-    });
+    const token = globalResolver.platformServices.auth.generateJWT(
+      user.id,
+      user.email_canonical,
+      "",
+      {
+        track: false,
+        provider_id: "tdrive",
+        public_token_document_id: req.body.document_id,
+      },
+    );
 
     return {
       access_token: token,
@@ -598,7 +595,7 @@ const getDriveExecutionContext = (
   user: req.currentUser,
   company: { id: req.params.company_id },
   url: req.url,
-  method: req.routerMethod,
+  method: req.routeOptions.method,
   reqId: req.id,
   transport: "http",
 });
@@ -612,7 +609,7 @@ function getCompanyExecutionContext(
     user: request.currentUser,
     company: { id: request.params.company_id },
     url: request.url,
-    method: request.routerMethod,
+    method: request.routeOptions.method,
     reqId: request.id,
     transport: "http",
   };

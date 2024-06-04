@@ -15,6 +15,8 @@ import { hasCompanyAdminLevel } from "../../../utils/company";
 import gr from "../../global-resolver";
 import { DriveFile, TYPE } from "../entities/drive-file";
 import { FileVersion, TYPE as FileVersionType } from "../entities/file-version";
+import User, { TYPE as UserType } from "../../user/entities/user";
+
 import {
   DriveTdriveTab as DriveTdriveTabEntity,
   TYPE as DriveTdriveTabRepoType,
@@ -54,20 +56,17 @@ import {
   makeStandaloneAccessLevel,
   getItemScope,
 } from "./access-check";
-import { websocketEventBus } from "../../../core/platform/services/realtime/bus";
 import archiver from "archiver";
 import internal from "stream";
-import {
-  RealtimeEntityActionType,
-  ResourcePath,
-} from "../../../core/platform/services/realtime/types";
 import config from "config";
+
 export class DocumentsService {
   version: "1";
   repository: Repository<DriveFile>;
   searchRepository: SearchRepository<DriveFile>;
   fileVersionRepository: Repository<FileVersion>;
   driveTdriveTabRepository: Repository<DriveTdriveTabEntity>;
+  userRepository: Repository<User>;
   ROOT: RootType = "root";
   TRASH: TrashType = "trash";
   quotaEnabled: boolean = config.has("drive.featureUserQuota")
@@ -94,8 +93,10 @@ export class DocumentsService {
           DriveTdriveTabRepoType,
           DriveTdriveTabEntity,
         );
+      this.userRepository = await globalResolver.database.getRepository<User>(UserType, User);
     } catch (error) {
       logger.error({ error: `${error}` }, "Error while initializing Documents Service");
+      throw error;
     }
 
     return this;
@@ -422,9 +423,6 @@ export class DocumentsService {
       //TODO[ASH] update item size only for files, there is not need to do during direcotry creation
       await updateItemSize(driveItem.parent_id, this.repository, context);
 
-      //TODO[ASH] there is no need to notify websocket, until we implement user notification
-      await this.notifyWebsocket(driveItem.parent_id, context);
-
       await globalResolver.platformServices.messageQueue.publish<DocumentsMessageQueueRequest>(
         "services:documents:process",
         {
@@ -646,12 +644,12 @@ export class DocumentsService {
         this.logger.error({ error: `${error}` }, "Failed to grant access to the drive item");
         throw new CrudException("User does not have access to this item or its children", 401);
       }
-
+      const path = await getPath(item.parent_id, this.repository, true, context);
       const previousParentId = item.parent_id;
       if (
         (await isInTrash(item, this.repository, context)) ||
         item.parent_id === this.TRASH ||
-        (await getPath(item.parent_id, this.repository, true, context))[0].id === this.TRASH
+        path[0].id === this.TRASH
       ) {
         //This item is already in trash, we can delete it definitively
 
@@ -690,14 +688,54 @@ export class DocumentsService {
       } else {
         //This item is not in trash, we move it to trash
         item.is_in_trash = true;
+        // Check item belongs to someone
+        if (item.creator !== context?.user?.id) {
+          const creator = await this.userRepository.findOne({ id: item.creator });
+          if (creator.type === "anonymous") {
+            const loadedCreators = new Map<string, User>();
+            let firstOwnedItem: DriveFile | undefined;
+            for (let i = path.length - 1; i >= 0; i--) {
+              const item = path[i];
+              if (!item.creator) continue;
+              const user =
+                loadedCreators.get(item.creator) ??
+                (await this.userRepository.findOne({ id: item.creator }));
+              loadedCreators.set(item.creator, user);
+              if (user.type !== "anonymous") {
+                firstOwnedItem = item;
+                break;
+              }
+            }
+            if (firstOwnedItem) {
+              const firstKnownCreator = loadedCreators.get(firstOwnedItem.creator);
+              const accessEntitiesWithoutUser = item.access_info.entities.filter(
+                ({ id, type }) => type != "user" || id != firstKnownCreator.id,
+              );
+              item.access_info.entities = [
+                ...accessEntitiesWithoutUser,
+                // This is not functionally required, but creates an audit trace of what
+                // happened to this anonymously uploaded file
+                {
+                  type: "user",
+                  id: firstKnownCreator.id,
+                  level: "manage",
+                  grantor: context.user.id,
+                },
+              ];
+              item.creator = firstKnownCreator.id;
+            } else {
+              // Move to company trash
+              item.parent_id = "trash";
+              item.scope = "shared";
+            }
+            await this.repository.save(item);
+          }
+        }
+
         await this.update(item.id, item, context);
       }
       await updateItemSize(previousParentId, this.repository, context);
-
-      await this.notifyWebsocket(previousParentId, context);
     }
-
-    await this.notifyWebsocket("trash", context);
   };
 
   /**
@@ -973,19 +1011,6 @@ export class DocumentsService {
     archive.finalize();
 
     return archive;
-  };
-
-  notifyWebsocket = async (id: string, context: DriveExecutionContext) => {
-    websocketEventBus.publish(RealtimeEntityActionType.Event, {
-      type: "documents:updated",
-      room: ResourcePath.get(`/companies/${context.company.id}/documents/item/${id}`),
-      entity: {
-        companyId: context.company.id,
-        id: id,
-      },
-      resourcePath: null,
-      result: null,
-    });
   };
 
   /**

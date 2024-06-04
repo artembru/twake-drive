@@ -22,6 +22,9 @@ export interface User {
   identity_provider_id?: uuid;
   // user email
   email?: string;
+
+  // session id
+  sid?: string;
   // server request
   server_request?: boolean; //Set to true if request if from the user, can be used to cancel any access restriction
   // application call
@@ -32,21 +35,8 @@ export interface User {
   public_token_document_id?: string;
 }
 
-export const webSocketSchema = {
-  type: "object",
-  properties: {
-    name: { type: "string" },
-    room: { type: "string" },
-    token: { type: "string" },
-  },
-};
-
 export interface Channel extends Workspace {
   id: string;
-}
-
-export enum ChannelType {
-  DIRECT = "direct",
 }
 
 export interface Workspace {
@@ -54,29 +44,19 @@ export interface Workspace {
   workspace_id: string;
 }
 
-export interface WebsocketMetadata {
-  room: string;
-  name?: string;
-  token?: string;
-}
-
 export class ResourceListResponse<T> {
   resources: T[];
-  websockets?: ResourceWebsocket[];
   next_page_token?: string;
   total?: number;
 }
 
 export class ResourceGetResponse<T> {
-  websocket?: ResourceWebsocket;
   resource: T;
 }
 export class ResourceUpdateResponse<T> {
-  websocket?: ResourceWebsocket;
   resource: T;
 }
 export class ResourceCreateResponse<T> {
-  websocket?: ResourceWebsocket;
   resource: T;
 }
 
@@ -84,16 +64,7 @@ export class ResourceDeleteResponse {
   status: DeleteStatus;
 }
 
-export interface ResourceListQueryParameters extends PaginationQueryParameters {
-  search_query?: string;
-  mine?: boolean;
-}
-
 export declare type DeleteStatus = "success" | "error";
-export interface ResourceWebsocket {
-  room: string;
-  token?: string;
-}
 
 export interface ResourceEventsPayload {
   user: User;
@@ -104,21 +75,11 @@ export interface ResourceEventsPayload {
   workspace?: WorkspacePrimaryKey;
 }
 
-export interface DocumentEventsPayload {
-  user: User;
-  actor?: User;
-  document?: {
-    sender: string;
-  };
-  company?: { id: string };
-}
-
 export interface PaginationQueryParameters {
   // It is offset for MongoDB and pointer to the next page for ScyllaDB
   page_token?: string;
   // Page size
   limit?: string;
-  websockets?: boolean;
 }
 
 export interface AccessToken {

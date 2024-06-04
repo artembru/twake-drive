@@ -97,4 +97,10 @@ export class OidcJwtVerifier {
 
     return jwt;
   }
+
+  async verifyLogoutToken(logoutTokenString: string) {
+    const jwt = await this.verifyAsPromise(logoutTokenString);
+    logger.info(`issuer is ${this.issuer} -- ${jwt.claims.iss} -- ${JSON.stringify(jwt)}`);
+    return jwt;
+  }
 }
