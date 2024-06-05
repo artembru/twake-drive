@@ -1,5 +1,5 @@
 import { atomFamily, atom } from 'recoil';
-import { BrowseSort, DriveItem, DriveItemDetails } from '../types';
+import { BrowsePaginate, BrowseSort, DriveItem, DriveItemDetails } from '../types';
 
 export const DriveItemChildrenAtom = atomFamily<DriveItem[], string>({
   key: 'DriveItemChildrenAtom',
@@ -21,5 +21,13 @@ export const DriveItemSort = atom<BrowseSort>({
   default: {
     by: 'name',
     order: 'asc',
+  },
+});
+
+export const DriveItemPagination = atom<BrowsePaginate>({
+  key: 'DriveItemPagination',
+  default: {
+    page: 1,
+    limit: 15,
   },
 });

@@ -1,6 +1,7 @@
 export type BrowseQuery = {
   filter: BrowseFilter;
   sort: BrowseSort;
+  paginate: BrowsePaginate;
 }
 
 export type BrowseFilter = {
@@ -12,6 +13,11 @@ export type BrowseSort = {
   by: string;
   order: string;
 }
+
+export type BrowsePaginate = { 
+  page: number;
+  limit: number
+};
 
 export type DriveItemDetails = {
   item: DriveItem;

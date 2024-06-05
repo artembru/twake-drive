@@ -96,6 +96,7 @@ export default memo(
       children,
       loading: loadingParent,
       path,
+      nextPage,
     } = useDriveItem(parentId);
     const { uploadTree } = useDriveUpload();
 
@@ -132,11 +133,7 @@ export default memo(
     const uploadItemModal = useCallback(() => {
       if (item?.id) setUploadModalState({ open: true, parent_id: item.id });
     }, [item?.id, setUploadModalState]);
-
-    const selectedCount = Object.values(checked).filter(v => v).length;
-    const folders = children
-      .filter(i => i.is_directory)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    
     const documents = (
       item?.is_directory === false
         ? //We use this hack for public shared single file
@@ -146,6 +143,8 @@ export default memo(
         : children
     )
       .filter(i => !i.is_directory)
+
+    const selectedCount = Object.values(checked).filter(v => v).length;
 
     const onBuildContextMenu = useOnBuildContextMenu(children, initialParentId);
     const onBuildSortContextMenu = useOnBuildSortContextMenu();
@@ -234,8 +233,31 @@ export default memo(
           )
       );
     }
-    
 
+    // Infinite scroll
+    const scrollViwer = useRef<HTMLDivElement>(null);
+    const observer = useRef<IntersectionObserver | null>(null);
+    useEffect(() => {
+      const options = {
+        root: null,
+        rootMargin: '0px',
+        threshold: 1.0,
+      };
+      observer.current = new IntersectionObserver(async entries => {
+        if (entries[0].isIntersecting) {
+          await nextPage(parentId);
+        }
+      }, options);
+      if (scrollViwer.current) {
+        observer.current.observe(scrollViwer.current);
+      }
+      return () => {
+        if (scrollViwer.current) {
+          observer.current?.unobserve(scrollViwer.current);
+        }
+      };
+    }, []);
+    
     return (
       <>
         {viewId == 'shared-with-me' ? (
@@ -393,20 +415,16 @@ export default memo(
               </div>
 
               <DndContext sensors={sensors} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
-                <div className="grow overflow-auto">
-                  {folders.length > 0 && (
-                    <>
-                      <Title className="mb-2 block">
-                        {Languages.t('scenes.app.drive.folders')}
-                      </Title>
+                <div className="grow overflow-auto" ref={scrollViwer}>
 
-                      {folders.map((child, index) => (
-                        <Droppable id={index} key={index}>
+                      {children.map((child, index) => (
+                        child.is_directory ? (
+                          <Droppable id={index} key={index}>
                           <FolderRow
                             key={index}
                             className={
                               (index === 0 ? 'rounded-t-md ' : '') +
-                              (index === folders.length - 1 ? 'rounded-b-md ' : '')
+                              (index === children.length - 1 ? 'rounded-b-md ' : '')
                             }
                             item={child}
                             onClick={() => {
@@ -423,41 +441,16 @@ export default memo(
                             onBuildContextMenu={() => onBuildContextMenu(details, child)}
                           />
                         </Droppable>
+                        ) : (
+                          draggableMarkup(index, child)
+                        )
                       ))}
-                      <div className="my-6" />
-                    </>
-                  )}
-
-                  <Title className="mb-2 block">{Languages.t('scenes.app.drive.documents')}</Title>
-
-                  {documents.length === 0 && !loading && (
-                    <div className="mt-4 text-center border-2 border-dashed rounded-md p-8">
-                      <Subtitle className="block mb-2">
-                        {Languages.t('scenes.app.drive.nothing')}
-                      </Subtitle>
-                      {!inTrash && access != 'read' && (
-                        <>
-                          <Base>{Languages.t('scenes.app.drive.drag_and_drop')}</Base>
-                          <br />
-                          <Button
-                            onClick={() => uploadItemModal()}
-                            theme="primary"
-                            className="mt-4"
-                          >
-                            {Languages.t('scenes.app.drive.add_doc')}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {documents.map((child, index) => draggableMarkup(index, child))}
                   <DragOverlay>
                     {activeIndex ? (
                       <DocumentRowOverlay
                         className={
                           (activeIndex === 0 ? 'rounded-t-md ' : '') +
-                          (activeIndex === documents.length - 1 ? 'rounded-b-md ' : '')
+                          (activeIndex === children.length - 1 ? 'rounded-b-md ' : '')
                         }
                         item={activeChild}
                       ></DocumentRowOverlay>

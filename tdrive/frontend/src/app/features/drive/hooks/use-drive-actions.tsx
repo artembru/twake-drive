@@ -1,9 +1,9 @@
 import { ToasterService } from '@features/global/services/toaster-service';
 import useRouterCompany from '@features/router/hooks/use-router-company';
 import { useCallback } from 'react';
-import { useRecoilValue, useRecoilCallback } from 'recoil';
+import { useRecoilValue, useRecoilCallback, useRecoilState } from 'recoil';
 import { DriveApiClient } from '../api-client/api-client';
-import { DriveItemAtom, DriveItemChildrenAtom, DriveItemSort } from '../state/store';
+import { DriveItemAtom, DriveItemChildrenAtom, DriveItemPagination, DriveItemSort } from '../state/store';
 import { BrowseFilter, DriveItem, DriveItemVersion } from '../types';
 import { SharedWithMeFilterState } from '../state/shared-with-me-filter';
 import Languages from 'features/global/services/languages-service';
@@ -18,6 +18,7 @@ export const useDriveActions = () => {
   const sharedFilter = useRecoilValue(SharedWithMeFilterState);
   const { getQuota } = useUserQuota();
   const sortItem = useRecoilValue(DriveItemSort);
+  const [paginateItem, setPaginateItem] = useRecoilState(DriveItemPagination);
 
   const refresh = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -28,7 +29,7 @@ export const useDriveActions = () => {
             mime_type: sharedFilter.mimeType.value,
           };
           try {
-            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem);
+            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem, paginateItem);
             set(DriveItemChildrenAtom(parentId), details.children);
             set(DriveItemAtom(parentId), details);
             for (const child of details.children) {
@@ -157,5 +158,14 @@ export const useDriveActions = () => {
     [refresh],
   );
 
-  return { create, refresh, download, downloadZip, remove, restore, update, updateLevel };
+  const nextPage = useCallback(
+    async (parentId: string) => {
+      setPaginateItem((prev) => ({ ...prev, page: prev.page + 1 }));
+      // should call drive api to get the next page items
+      // append them to the drive item state
+    },
+    [paginateItem, refresh],
+  );
+
+  return { create, refresh, download, downloadZip, remove, restore, update, updateLevel, nextPage };
 };

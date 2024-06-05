@@ -16,6 +16,7 @@ import {
   DriveItemDetails,
   DriveTdriveTab,
   ItemRequestParams,
+  PaginateDocumentBody,
   RequestParams,
   SearchDocumentsBody,
   SearchDocumentsOptions,
@@ -193,12 +194,14 @@ export class DocumentsController {
     };
 
     const sortOptions: SortDocumentsBody = request.body.sort;
+    const paginateOptions: PaginateDocumentBody = request.body.paginate;
 
     return {
       ...(await globalResolver.services.documents.documents.browse(
         id,
         options,
         sortOptions,
+        paginateOptions,
         context,
       )),
     };

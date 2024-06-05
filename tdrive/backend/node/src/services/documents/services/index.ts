@@ -29,6 +29,7 @@ import {
   DriveFileAccessLevel,
   DriveItemDetails,
   DriveTdriveTab,
+  PaginateDocumentBody,
   RootType,
   SearchDocumentsOptions,
   SortDocumentsBody,
@@ -106,6 +107,7 @@ export class DocumentsService {
     id: string,
     options: SearchDocumentsOptions,
     sort: SortDocumentsBody,
+    paginate: PaginateDocumentBody,
     context: DriveExecutionContext & { public_token?: string },
   ): Promise<BrowseDetails> => {
     if (isSharedWithMeFolder(id)) {
@@ -113,7 +115,7 @@ export class DocumentsService {
     } else {
       return {
         nextPage: null,
-        ...(await this.get(id, context, sort)),
+        ...(await this.get(id, context, sort, paginate)),
       };
     }
   };
@@ -156,6 +158,7 @@ export class DocumentsService {
     id: string,
     context: DriveExecutionContext & { public_token?: string },
     sort?: SortDocumentsBody,
+    paginate?: PaginateDocumentBody,
   ): Promise<DriveItemDetails> => {
     if (!context) {
       this.logger.error("invalid context");
@@ -215,9 +218,11 @@ export class DocumentsService {
       sized: "size",
     };
     const sortField = {};
-    sortField[sortFieldMapping[sort?.by] || "name"] = sort?.order || "asc";
-
+    console.log(sort, paginate, sortFieldMapping);
+    //sortField[sortFieldMapping[sort?.by] || "is_directory"] = sort?.order || "asc";
+    sortField["is_directory"] = "desc";
     //Get children if it is a directory
+    const pagination = new Pagination(`${paginate.page}`, `${paginate.limit}`, false);
     let children = isDirectory
       ? (
           await this.repository.find(
@@ -240,7 +245,12 @@ export class DocumentsService {
                     is_in_trash: false,
                   }),
             },
-            sortField,
+            {
+              sort: {
+                is_directory: "desc",
+              },
+              pagination,
+            },
             context,
           )
         ).getEntities()

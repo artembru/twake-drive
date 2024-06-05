@@ -26,6 +26,7 @@ export const useDriveItem = (id: string) => {
     updateLevel: _updateLevel,
     remove: _remove,
     restore: _restore,
+    nextPage,
   } = useDriveActions();
   const { uploadVersion: _uploadVersion } = useDriveUpload();
 
@@ -123,6 +124,7 @@ export const useDriveItem = (id: string) => {
     updateLevel,
     remove,
     refresh,
+    nextPage,
   };
 };
 

@@ -1,5 +1,5 @@
 import Api from '../../global/framework/api-service';
-import { BrowseFilter, BrowseQuery, BrowseSort, DriveItem, DriveItemDetails, DriveItemVersion } from '../types';
+import { BrowseFilter, BrowsePaginate, BrowseQuery, BrowseSort, DriveItem, DriveItemDetails, DriveItemVersion } from '../types';
 import Workspace from '@deprecated/workspaces/workspaces';
 import Logger from 'features/global/framework/logger-service';
 import { JWTDataType } from 'app/features/auth/jwt-storage-service';
@@ -70,13 +70,14 @@ export class DriveApiClient {
     );
   }
 
-  static async browse(companyId: string, id: string | 'trash' | '', filter: BrowseFilter, sort: BrowseSort) {
+  static async browse(companyId: string, id: string | 'trash' | '', filter: BrowseFilter, sort: BrowseSort, paginate: BrowsePaginate) {
     console.log("sorting by: ", sort.by, "order: ", sort.order);
     return await Api.post<BrowseQuery, DriveItemDetails>(
       `/internal/services/documents/v1/companies/${companyId}/browse/${id}${appendTdriveToken()}`,
       {
         filter,
         sort,
+        paginate
       },
     );
   }
