@@ -212,6 +212,7 @@ export class DocumentsService {
         ).getEntities();
 
     const sortFieldMapping = {
+      directory: "is_directory",
       name: "name",
       date: "added",
       shared: "scope",
@@ -219,8 +220,8 @@ export class DocumentsService {
     };
     const sortField = {};
     console.log(sort, paginate, sortFieldMapping);
-    //sortField[sortFieldMapping[sort?.by] || "is_directory"] = sort?.order || "asc";
-    sortField["is_directory"] = "desc";
+    sortField[sortFieldMapping[sort?.by] || "is_directory"] = sort?.order || "asc";
+
     //Get children if it is a directory
     const pagination = new Pagination(`${paginate.page}`, `${paginate.limit}`, false);
     let children = isDirectory
@@ -247,7 +248,7 @@ export class DocumentsService {
             },
             {
               sort: {
-                is_directory: "desc",
+                name: "asc",
               },
               pagination,
             },

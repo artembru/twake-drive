@@ -1,7 +1,7 @@
 import { ToasterService } from '@features/global/services/toaster-service';
 import { LoadingStateInitTrue } from '@features/global/state/atoms/Loading';
 import useRouterCompany from '@features/router/hooks/use-router-company';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useRecoilCallback, useRecoilState, useRecoilValue } from 'recoil';
 import { DriveItemAtom, DriveItemChildrenAtom, DriveItemPagination } from '../state/store';
 import { DriveItem } from '../types';
@@ -31,17 +31,14 @@ export const useDriveItem = (id: string) => {
     nextPage,
   } = useDriveActions();
   const { uploadVersion: _uploadVersion } = useDriveUpload();
-
   const refresh = useCallback(
     async (parentId: string) => {
       setLoading(true);
       try {
+        setPaginateItem(prev => ({ ...prev, page: 0 }));
         await refreshItem(parentId);
       } finally {
-        setPaginateItem(prev => ({
-          ...prev,
-          page: prev.limit + 1,
-        }));
+        setPaginateItem(prev => ({ ...prev, page: prev.limit }));
         setLoading(false);
       }
     },
@@ -113,16 +110,13 @@ export const useDriveItem = (id: string) => {
         try {
           const details = await nextPage(id);
           setChildren(prev => [...prev, ...details.children]);
-          if (details?.children.length === 0) {
-            ToasterService.info('No more items to load.');
-          }
         } catch (e) {
           console.log('error is: ', e);
           ToasterService.error('Unable to load more items.');
         } finally {
           set(DriveItemPagination, prev => ({
             ...prev,
-            page: prev.page + 1,
+            page: (prev.page + prev.limit),
           }));
         }
       },

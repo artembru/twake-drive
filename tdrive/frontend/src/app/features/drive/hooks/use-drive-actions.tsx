@@ -30,7 +30,7 @@ export const useDriveActions = () => {
           };
           const pagination = await snapshot.getPromise(DriveItemPagination);
           try {
-            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem, {...pagination, page: 1});
+            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem, pagination);
             set(DriveItemChildrenAtom(parentId), details.children);
             set(DriveItemAtom(parentId), details);
             for (const child of details.children) {

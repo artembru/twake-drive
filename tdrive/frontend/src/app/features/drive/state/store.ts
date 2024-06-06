@@ -19,15 +19,15 @@ export const DriveItemSelectedList = atom<{[key: string]: boolean }>({
 export const DriveItemSort = atom<BrowseSort>({
   key: 'DriveItemSort',
   default: {
-    by: 'name',
-    order: 'asc',
+    by: 'directory',
+    order: 'desc',
   },
 });
 
 export const DriveItemPagination = atom<BrowsePaginate>({
   key: 'DriveItemPagination',
   default: {
-    page: 1,
+    page: 0,
     limit: 15,
   },
 });
