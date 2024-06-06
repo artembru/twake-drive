@@ -223,7 +223,8 @@ export class DocumentsService {
     sortField[sortFieldMapping[sort?.by] || "is_directory"] = sort?.order || "asc";
 
     //Get children if it is a directory
-    const pagination = new Pagination(`${paginate.page}`, `${paginate.limit}`, false);
+    let pagination: Pagination;
+    if (paginate) pagination = new Pagination(`${paginate.page}`, `${paginate.limit}`, false);
     let children = isDirectory
       ? (
           await this.repository.find(
