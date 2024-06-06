@@ -72,17 +72,24 @@ export default memo(
     const { user } = useCurrentUser();
     const companyId = useRouterCompany();
     const history = useHistory();
-    const role = user ? (user?.companies || []).find(company => company?.company.id === companyId)?.role : "member";
+    const role = user
+      ? (user?.companies || []).find(company => company?.company.id === companyId)?.role
+      : 'member';
     setTdriveTabToken(tdriveTabContextToken || null);
     const [filter, __] = useRecoilState(SharedWithMeFilterState);
     const { viewId, dirId } = useRouteState();
     const [parentId, _setParentId] = useRecoilState(
-      DriveCurrentFolderAtom({ context: context, initialFolderId: dirId || viewId || initialParentId || 'user_'+user?.id }),
+      DriveCurrentFolderAtom({
+        context: context,
+        initialFolderId: dirId || viewId || initialParentId || 'user_' + user?.id,
+      }),
     );
 
     // set the initial view to the user's home directory
     useEffect(() => {
-      !dirId && !viewId && history.push(RouterServices.generateRouteFromState({viewId: parentId}));
+      !dirId &&
+        !viewId &&
+        history.push(RouterServices.generateRouteFromState({ viewId: parentId }));
     }, [viewId, dirId]);
 
     const [loadingParentChange, setLoadingParentChange] = useState(false);
@@ -96,7 +103,7 @@ export default memo(
       children,
       loading: loadingParent,
       path,
-      nextPage,
+      loadNextPage,
     } = useDriveItem(parentId);
     const { uploadTree } = useDriveUpload();
 
@@ -133,7 +140,7 @@ export default memo(
     const uploadItemModal = useCallback(() => {
       if (item?.id) setUploadModalState({ open: true, parent_id: item.id });
     }, [item?.id, setUploadModalState]);
-    
+
     const documents = (
       item?.is_directory === false
         ? //We use this hack for public shared single file
@@ -141,29 +148,28 @@ export default memo(
           ? [item]
           : []
         : children
-    )
-      .filter(i => !i.is_directory)
+    ).filter(i => !i.is_directory);
 
     const selectedCount = Object.values(checked).filter(v => v).length;
 
     const onBuildContextMenu = useOnBuildContextMenu(children, initialParentId);
     const onBuildSortContextMenu = useOnBuildSortContextMenu();
 
-    const handleDragOver = (event: { preventDefault: () => void; }) => {
+    const handleDragOver = (event: { preventDefault: () => void }) => {
       event.preventDefault();
-    }
-    const handleDrop = async (event: {dataTransfer: any; preventDefault: () => void;}) => {
+    };
+    const handleDrop = async (event: { dataTransfer: any; preventDefault: () => void }) => {
       event.preventDefault();
       const dataTransfer = event.dataTransfer;
-              if (dataTransfer) {
-                const tree = await getFilesTree(dataTransfer);
-                setCreationModalState({ parent_id: '', open: false });
-                await uploadTree(tree, {
-                  companyId,
-                  parentId,
-              });
-              }
-    }
+      if (dataTransfer) {
+        const tree = await getFilesTree(dataTransfer);
+        setCreationModalState({ parent_id: '', open: false });
+        await uploadTree(tree, {
+          companyId,
+          parentId,
+        });
+      }
+    };
 
     const buildFileTypeContextMenu = useOnBuildFileTypeContextMenu();
     const buildPeopleContextMen = useOnBuildPeopleContextMenu();
@@ -171,24 +177,24 @@ export default memo(
     const setConfirmModalState = useSetRecoilState(ConfirmModalAtom);
     const [activeIndex, setActiveIndex] = useState(null);
     const [activeChild, setActiveChild] = useState(null);
-    const {update} = useDriveActions();
+    const { update } = useDriveActions();
     const sensors = useSensors(
       useSensor(PointerSensor, {
         activationConstraint: {
           distance: 8,
         },
-      })
+      }),
     );
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    function handleDragStart(event:any) {
+    function handleDragStart(event: any) {
       setActiveIndex(event.active.id);
       setActiveChild(event.active.data.current.child.props.item);
     }
-    function handleDragEnd(event:any) {
+    function handleDragEnd(event: any) {
       setActiveIndex(null);
       setActiveChild(null);
-      if (event.over){
+      if (event.over) {
         setConfirmModalState({
           open: true,
           parent_id: inTrash ? 'root' : event.over.data.current.child.props.item.id,
@@ -205,59 +211,51 @@ export default memo(
               event.active.data.current.child.props.item.parent_id,
             );
           },
-        })
+        });
       }
-      
     }
 
     function draggableMarkup(index: number, child: any) {
       const commonProps = {
         key: index,
         className:
-            (index === 0 ? 'rounded-t-md ' : '') +
-            (index === documents.length - 1 ? 'rounded-b-md ' : ''),
+          (index === 0 ? 'rounded-t-md ' : '') +
+          (index === documents.length - 1 ? 'rounded-b-md ' : ''),
         item: child,
         checked: checked[child.id] || false,
-        onCheck: (v: boolean) =>
-            setChecked(_.pickBy({ ...checked, [child.id]: v }, _.identity)),
+        onCheck: (v: boolean) => setChecked(_.pickBy({ ...checked, [child.id]: v }, _.identity)),
         onBuildContextMenu: () => onBuildContextMenu(details, child),
         inPublicSharing,
       };
-      return (
-          isMobile ? (
-            <DocumentRow {...commonProps} />
-          ) : (
-            <Draggable id={index}>
-              <DocumentRow {...commonProps} />
-            </Draggable>
-          )
+      return isMobile ? (
+        <DocumentRow {...commonProps} />
+      ) : (
+        <Draggable id={index}>
+          <DocumentRow {...commonProps} />
+        </Draggable>
       );
     }
 
     // Infinite scroll
     const scrollViwer = useRef<HTMLDivElement>(null);
-    const observer = useRef<IntersectionObserver | null>(null);
-    useEffect(() => {
-      const options = {
-        root: null,
-        rootMargin: '0px',
-        threshold: 1.0,
-      };
-      observer.current = new IntersectionObserver(async entries => {
-        if (entries[0].isIntersecting) {
-          await nextPage(parentId);
-        }
-      }, options);
-      if (scrollViwer.current) {
-        observer.current.observe(scrollViwer.current);
+
+    const handleScroll = async () => {
+      console.log('scrolling');
+      const scrollTop = scrollViwer.current?.scrollTop || 0;
+      const scrollHeight = scrollViwer.current?.scrollHeight || 0;
+      const clientHeight = scrollViwer.current?.clientHeight || 0;
+      if (scrollTop + clientHeight >= scrollHeight) {
+        await loadNextPage();
       }
+    };
+
+    useEffect(() => {
+      scrollViwer.current?.addEventListener('scroll', handleScroll, { passive: true });
       return () => {
-        if (scrollViwer.current) {
-          observer.current?.unobserve(scrollViwer.current);
-        }
+        scrollViwer.current?.removeEventListener('scroll', handleScroll);
       };
     }, []);
-    
+
     return (
       <>
         {viewId == 'shared-with-me' ? (
@@ -388,16 +386,14 @@ export default memo(
                   </BaseSmall>
                 )}
                 <Menu menu={() => onBuildSortContextMenu()}>
-                    {' '}
-                    <Button theme="outline" className="ml-4 flex flex-row items-center">
-                      <SortIcon className="h-4 w-4 mr-2 -ml-1" />
-                      <span>
-                        By date
-                      </span>
+                  {' '}
+                  <Button theme="outline" className="ml-4 flex flex-row items-center">
+                    <SortIcon className="h-4 w-4 mr-2 -ml-1" />
+                    <span>By date</span>
 
-                      <ChevronDownIcon className="h-4 w-4 ml-2 -mr-1" />
-                    </Button>
-                  </Menu>
+                    <ChevronDownIcon className="h-4 w-4 ml-2 -mr-1" />
+                  </Button>
+                </Menu>
                 {viewId !== 'shared_with_me' && (
                   <Menu menu={() => onBuildContextMenu(details)}>
                     {' '}
@@ -416,35 +412,34 @@ export default memo(
 
               <DndContext sensors={sensors} onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
                 <div className="grow overflow-auto" ref={scrollViwer}>
-
-                      {children.map((child, index) => (
-                        child.is_directory ? (
-                          <Droppable id={index} key={index}>
-                          <FolderRow
-                            key={index}
-                            className={
-                              (index === 0 ? 'rounded-t-md ' : '') +
-                              (index === children.length - 1 ? 'rounded-b-md ' : '')
-                            }
-                            item={child}
-                            onClick={() => {
-                              const route = RouterServices.generateRouteFromState({
-                                dirId: child.id,
-                              });
-                              history.push(route);
-                              if (inPublicSharing) return setParentId(child.id);
-                            }}
-                            checked={checked[child.id] || false}
-                            onCheck={v =>
-                              setChecked(_.pickBy({ ...checked, [child.id]: v }, _.identity))
-                            }
-                            onBuildContextMenu={() => onBuildContextMenu(details, child)}
-                          />
-                        </Droppable>
-                        ) : (
-                          draggableMarkup(index, child)
-                        )
-                      ))}
+                  {children.map((child, index) =>
+                    child.is_directory ? (
+                      <Droppable id={index} key={index}>
+                        <FolderRow
+                          key={index}
+                          className={
+                            (index === 0 ? 'rounded-t-md ' : '') +
+                            (index === children.length - 1 ? 'rounded-b-md ' : '')
+                          }
+                          item={child}
+                          onClick={() => {
+                            const route = RouterServices.generateRouteFromState({
+                              dirId: child.id,
+                            });
+                            history.push(route);
+                            if (inPublicSharing) return setParentId(child.id);
+                          }}
+                          checked={checked[child.id] || false}
+                          onCheck={v =>
+                            setChecked(_.pickBy({ ...checked, [child.id]: v }, _.identity))
+                          }
+                          onBuildContextMenu={() => onBuildContextMenu(details, child)}
+                        />
+                      </Droppable>
+                    ) : (
+                      draggableMarkup(index, child)
+                    ),
+                  )}
                   <DragOverlay>
                     {activeIndex ? (
                       <DocumentRowOverlay

@@ -16,9 +16,9 @@ import { useUserQuota } from 'features/users/hooks/use-user-quota';
 export const useDriveActions = () => {
   const companyId = useRouterCompany();
   const sharedFilter = useRecoilValue(SharedWithMeFilterState);
-  const { getQuota } = useUserQuota();
   const sortItem = useRecoilValue(DriveItemSort);
-  const [paginateItem, setPaginateItem] = useRecoilState(DriveItemPagination);
+  const [paginateItem, _] = useRecoilState(DriveItemPagination);
+  const { getQuota } = useUserQuota();
 
   const refresh = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -28,8 +28,9 @@ export const useDriveActions = () => {
             company_id: companyId,
             mime_type: sharedFilter.mimeType.value,
           };
+          const pagination = await snapshot.getPromise(DriveItemPagination);
           try {
-            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem, paginateItem);
+            const details = await DriveApiClient.browse(companyId, parentId, filter, sortItem, {...pagination, page: 1});
             set(DriveItemChildrenAtom(parentId), details.children);
             set(DriveItemAtom(parentId), details);
             for (const child of details.children) {
@@ -158,12 +159,23 @@ export const useDriveActions = () => {
     [refresh],
   );
 
-  const nextPage = useCallback(
-    async (parentId: string) => {
-      setPaginateItem((prev) => ({ ...prev, page: prev.page + 1 }));
-      // should call drive api to get the next page items
-      // append them to the drive item state
-    },
+  const nextPage = useRecoilCallback(
+    ({ snapshot }) =>
+      async (parentId: string) => {
+        const filter: BrowseFilter = {
+          company_id: companyId,
+          mime_type: sharedFilter.mimeType.value,
+        };
+        const pagination = await snapshot.getPromise(DriveItemPagination);
+        const details = await DriveApiClient.browse(
+          companyId,
+          parentId,
+          filter,
+          sortItem,
+          pagination
+        );
+        return details;
+      },
     [paginateItem, refresh],
   );
 
